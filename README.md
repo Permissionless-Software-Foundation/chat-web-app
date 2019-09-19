@@ -2,7 +2,7 @@
 
 Live version: https://chat.psfoundation.cash
 
-**Notice**: Chat are not yet encrypted, but we are working hard on this.
+**Notice**: Chats are not yet encrypted, but we are working hard on this.
 
 This web-based chat app is distributed over IPFS, making it very difficult
 to censor or block. It will be end-to-end encrypted, allowing members of the
