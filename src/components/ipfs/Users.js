@@ -8,8 +8,20 @@ cursor:pointer;
 margin-bottom: 0.5em!important;
     padding: 0.5em;
     background-color: rgba(0,0,0,0.1)!important;
-   width: 95%;
+   width: 100%;
     margin: 0 auto;
+`
+const OnlinesData = styled.h4`
+margin-bottom: 0.5em!important;
+    padding: 0.5em;
+    background-color: rgba(0,0,0,0.1)!important;
+   width: 100%;
+    margin: 0 auto;
+    text-align:center
+`
+const UserContainer = styled.div`
+  padding: 1em;
+  padding-right:0px!important;
 `
 let _this
 export class Users extends React.Component {
@@ -34,11 +46,11 @@ export class Users extends React.Component {
 
     render() {
         return (
-            <div>
-                <p>Onlines Nodes :  <b>{_this.state.onlineNodes ? _this.state.onlineNodes.length : '0'}</b></p>
+            <UserContainer>
+                <OnlinesData>Onlines Nodes :  <b>{_this.state.onlineNodes ? _this.state.onlineNodes.length : '0'}</b></OnlinesData>
                 <OnlinesName key="keyMaster" id={_this.props.PUBSUB_CHANNEL} onClick={() => this.subscribeToOtherChannel(_this.props.PUBSUB_CHANNEL)} ><b>ALL</b></OnlinesName>
                 {_this.state.onlineNodes && _this.state.onlineNodes.map((val, i) => <OnlinesName key={val.username + i} id={val.keiId} onClick={() => this.subscribeToOtherChannel(val)} >{val.username ? val.username : val} </OnlinesName>)}
-            </div>
+            </UserContainer>
         );
     }
 
@@ -47,15 +59,15 @@ export class Users extends React.Component {
         let channelName;
 
         let chatName = ''
+        
         if (value === _this.props.PUBSUB_CHANNEL) {
-
+            // Go to  group chat
             if (_this.state.chatWith === 'All') return
-            //  changeCh(PUBSUB_CHANNEL)
             chatName = 'All'
             channelName = await _this.props.requestPersonChat(value, true)
 
-        } else if (_this.state.ipfsId != value.keyId) {
-
+        } else if (_this.state.ipfsId != value.keyId) { 
+            // Go to private chat
             if (_this.state.chatWith === value.username) return
             chatName = value.username
 
@@ -67,7 +79,7 @@ export class Users extends React.Component {
             chatWith: chatName,
             channel: channelName
         }))
-        _this.props.updateChatName(chatName)
+        _this.props.updateChatName(chatName,channelName)
     }
 
     componentDidMount() {

@@ -3,9 +3,10 @@ import React from 'react'
 import { Users } from '../components/ipfs/Users'
 import { Chat } from '../components/ipfs/Chat'
 import styled from 'styled-components'
+import { Buffer } from 'ipfs'
 const IPFS = typeof window !== `undefined` ? require('ipfs') : null
 const OrbitDB = typeof window !== `undefined` ? require('orbit-db') : null
-
+const { decrypt } = require('../components/encryption')
 //const MASTER_MULTIADDR = `/ip4/138.68.212.34/tcp/4003/ws/ipfs/QmauKY7Sh47ZD49oy9VT1e9djHXmUjXfP6qPn4CnbEcXSn`
 const MASTER_MULTIADDR = `/dns4/wss.psfoundation.cash/tcp/443/wss/ipfs/QmaUW4oCVPUFLRqeSjvhHwGFJHGWrYWLBEt7WxnexDm3Xa`
 
@@ -45,7 +46,7 @@ export class chatapp extends React.Component {
   state = {
     ipfs: null,
     orbitdb: null,
-    masterConected: false,
+    masterConnected: false,
     onlineNodes: [],
     ipfsId: '',
     channelSend: 'ipfsObitdb-chat',
@@ -55,6 +56,7 @@ export class chatapp extends React.Component {
     username: 'Node' + Math.floor(Math.random() * 900 + 100).toString(),
     chatWith: 'All',
     dbIsReady: false,
+    passEncryption: ''
   }
 
   constructor(props) {
@@ -104,7 +106,9 @@ export class chatapp extends React.Component {
       // Multiple connections will blacklist the server.
       await _this.state.ipfs.swarm.connect(MASTER_MULTIADDR)
       console.log(`Connected to master node.`)
-
+      _this.setState({
+        masterConnected: true,
+      })
       //Instantiated db key value to store my username
       try {
         const access = {
@@ -124,7 +128,7 @@ export class chatapp extends React.Component {
 
       _this.createDb(DB_ADDRESS) // create db
 
-      //subscribe to master channel
+      //Subscribe to master channel
       channelsSuscriptions.push(PUBSUB_CHANNEL)
       _this.state.ipfs.pubsub.subscribe(PUBSUB_CHANNEL, data => {
         const jsonData = JSON.parse(data.data.toString())
@@ -143,7 +147,7 @@ export class chatapp extends React.Component {
             })
           }
         }
-        //recived status online to master to control my status
+        //Recived status online to master to control my status
         if (jsonData.status === 'online' && jsonData.username === 'system') {
           if (_this.state.isConnected === false) {
             _this.setState({
@@ -154,7 +158,7 @@ export class chatapp extends React.Component {
         }
       })
 
-      //send status online to master to control online users
+      //Send status online to master to control online users
       setInterval(() => {
         const msg = { status: 'online', username: _this.state.username }
         const msgEncoded = Buffer.from(JSON.stringify(msg))
@@ -163,8 +167,8 @@ export class chatapp extends React.Component {
             return console.error(`failed to publish to ${PUBSUB_CHANNEL}`, err)
           }
         })
-        // verify my connection status
-        if ((new Date() - myDateConnection) / 1500 > 5) {
+        // Verify my connection status
+        if ((new Date() - myDateConnection) / 1500 > 6) {
           _this.setState({
             isConnected: false,
           })
@@ -172,13 +176,17 @@ export class chatapp extends React.Component {
         }
       }, 1000)
 
-      // subscribe to my own channel
+            /* 
+      Subscribe to my own channel.
+      This  get info to personal chat request
+      */
       channelsSuscriptions.push(ipfsId.id)
       _this.state.ipfs.pubsub.subscribe(ipfsId.id, data => {
         const jsonData = JSON.parse(data.data.toString())
         if (jsonData.peer1 === ipfsId.id) {
           _this.setState({
             channelSend: jsonData.channelName,
+            passEncryption: jsonData.pass
           })
           let flag = true
           _this.createDb(jsonData.dbName, true)
@@ -215,7 +223,7 @@ export class chatapp extends React.Component {
           <SpanText>
             IPFS CONNECTION:{' '}
             <b>
-              {_this.state.masterConected === false
+              {_this.state.masterConnected === false
                 ? ` Connecting to master ....  `
                 : ` Connected!!  `}
             </b>
@@ -242,7 +250,6 @@ export class chatapp extends React.Component {
             ></Users>
           </ContainerUsers>
           <ContainerChat>
-            {_this.state.dbIsReady ? (
               <Chat
                 ipfs={_this.state.ipfs}
                 orbitdb={_this.state.orbitdb}
@@ -251,13 +258,12 @@ export class chatapp extends React.Component {
                 channelSend={_this.state.channelSend}
                 PUBSUB_CHANNEL={PUBSUB_CHANNEL}
                 username={_this.state.username}
-                query={_this.query}
+                AddMessage={_this.AddMessage}
                 changeUserName={_this.getUserName}
                 chatWith={_this.state.chatWith}
+                passEncryption={_this.state.passEncryption}
+                dbIsReady={_this.state.dbIsReady}
               ></Chat>
-            ) : (
-              <p>Loading Chat...</p>
-            )}
           </ContainerChat>
         </ContainerFlex>
       </div>
@@ -294,23 +300,20 @@ export class chatapp extends React.Component {
 
   // Subscribe to an IPFS pubsub channel.
   async subscribe(channelName) {
-    if (_this.state.ipfs) return
+    if (!_this.state.ipfs) return
     channelsSuscriptions.push(channelName)
     _this.state.ipfs.pubsub.subscribe(channelName, data => {
-      const jsonData = JSON.parse(data.data.toString())
-      if (jsonData.status === 'message') {
-        _this.query(jsonData.username, jsonData.message)
-      }
+     const jsonData = JSON.parse(data.data.toString())
+     console.log(jsonData)
     })
     console.warn('subscribed to : ' + channelName)
   }
 
-  // Is this function querying data or adding data?
-  // It is working with a key-value DB, right?
-  async query(nickname, message) {
+
+  // Adding messages to  event log orbit db 
+  async AddMessage(entry) {
     try {
-      const entry = { nickname: nickname, message: message }
-      //encryt  entry here
+
       await db.add(entry)
       _this.queryGet()
     } catch (e) {
@@ -320,24 +323,57 @@ export class chatapp extends React.Component {
 
   // Get the the latest messages from the event log DB.
   async queryGet() {
+
     try {
+      //get messages from db 
       let latestMessages = db.iterator({ limit: 10 }).collect()
-      let output = ''
-      //desencryt  here e.payload.value
-      output +=
-        latestMessages
-          .map(e => e.payload.value.nickname + ' : ' + e.payload.value.message)
-          .join('\n') + `\n`
-      _this.setState({
-        output: output,
-      })
+      // Validate - decrypt private messages. PUBSUB_CHANNEL is public chat
+      if (_this.state.channelSend === PUBSUB_CHANNEL) {
+        let output = ''
+        output +=
+          latestMessages
+            .map(e => e.payload.value.nickname + ' : ' + e.payload.value.message)
+            .join('\n') + `\n`
+        _this.setState({
+          output: output,
+        })
+      } else {
+        //Decrytp db value
+        _this.getDataDecrypted(latestMessages)
+      }
     } catch (e) {
       console.error(e)
     }
   }
+  //Decrypt message from  db 
+  async getDataDecrypted(arrayData) {
+    let output = ''
+    if (arrayData.length == 0) {
+      _this.setState({
+        output: output,
+      })
+      return
+    }
+    arrayData.map(async (val, i) => {
 
-  // Request a priavate chat session with another user.
+      let decoded = await decrypt(
+        val.payload.value,
+        _this.state.passEncryption
+      )
+      let ObjectDecode = JSON.parse(decoded)
+      output += `${ObjectDecode.nickname} : ${ObjectDecode.message} \n`
+      if (i >= arrayData.length - 1) {
+        _this.setState({
+          output: output,
+        })
+      }
+    })
+
+
+  }
+  // Request a private chat session with another user.
   async requestPersonChat(peerClient, reset) {
+    //validate for loaded db
     if (_this.state.dbIsReady === false) return
     _this.setState({
       dbIsReady: false,
@@ -349,7 +385,10 @@ export class chatapp extends React.Component {
     const myID = _this.state.ipfsId
     const clientId = peerClient.toString()
     const newChannelName = myID + clientId
-    const newDbName = newChannelName + '1232772'
+    const newDbName = newChannelName +
+      Math.floor(Math.random() *
+        10000 + 1000).toString()
+
     const msg = {
       status: 'requestChat',
       channelName: newChannelName,
@@ -371,8 +410,9 @@ export class chatapp extends React.Component {
     })
   }
 
-  // Get the user names of other nodes connected to the chat app.
+  //Verify, obtain and make persistent my username
   async getUserName(changeUserName, username) {
+    //Edit my username on the database(key-value)
     if (changeUserName === true) {
       if (username === _this.state.username) return
       await db_nicknameControl.set(myNameStoreKey, { username: username })
@@ -382,12 +422,16 @@ export class chatapp extends React.Component {
       return
     }
     try {
+      //get username from data base 
       const userName = await db_nicknameControl.get(myNameStoreKey)
+      // Uses username previously saved
       if (userName) {
         _this.setState({
           username: userName.username,
         })
       } else {
+        // If there's no username on the database, 
+        //adds random username assigned
         await db_nicknameControl.set(myNameStoreKey, {
           username: _this.state.username,
         })
