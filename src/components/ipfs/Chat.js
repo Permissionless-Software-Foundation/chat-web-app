@@ -1,10 +1,14 @@
 import React from 'react';
 import PropTypes from 'prop-types'
 import styled from 'styled-components'
-
+import { Buffer } from 'ipfs'
+const { encrypt } = require('../encryption')
 
 let _this
-
+const ChatContainer = styled.div`
+  padding: 1em;
+  padding-left:0px!important
+`
 const ContainerSend = styled.div`
   display: flex;
   margin-bottom: 25px;
@@ -37,6 +41,8 @@ export class Chat extends React.Component {
         status: "message"
       },
       chatWith: 'All',
+      dbIsReady: false,
+      passEncryption: ''
 
     };
 
@@ -45,23 +51,44 @@ export class Chat extends React.Component {
 
   render() {
     return (
-      <div>
-      <ChatName>Chat With :  <b>{_this.state.chatWith}</b></ChatName>
-        <textarea id="chatArea" name="chatArea" rows="10" cols="50" readOnly value={_this.props.output}>
+      <ChatContainer>
+        {_this.state.dbIsReady ?
+          <ChatName>Chat With : <b>{_this.state.chatWith}</b></ChatName> :
+          <ChatName> <b>Loading Chat..</b></ChatName>}
+
+        <textarea id="chatArea"
+          name="chatArea"
+          rows="10"
+          cols="50"
+          readOnly
+          value={_this.props.output}>
         </textarea>
         <br></br>
         <br></br>
         <ContainerSend>
-          <InputNickname type="text" id="nickname" name="nickname" placeholder="nickname"></InputNickname>
-          <input id="msg" name="msg" type="text" placeholder="type message" onKeyPress={(ev) => {
-            if (ev.key === 'Enter') {
-              _this.handleUpdateMsg()
-              ev.preventDefault();
-            }
-          }}></input>
-          <button onClick={this.handleUpdateMsg}>Send.</button>
+          <InputNickname
+            disabled={!_this.state.dbIsReady}
+            type="text" id="nickname"
+            name="nickname"
+            placeholder="nickname">
+          </InputNickname>
+          <input
+            disabled={!_this.state.dbIsReady}
+            id="msg"
+            name="msg"
+            type="text"
+            placeholder="type message"
+            onKeyPress={(ev) => {
+              if (ev.key === 'Enter') {
+                _this.handleUpdateMsg()
+                ev.preventDefault();
+              }
+            }}></input>
+          <button
+            disabled={!_this.state.dbIsReady}
+            onClick={this.handleUpdateMsg}>Send.</button>
         </ContainerSend>
-      </div>
+      </ChatContainer>
     );
   }
 
@@ -90,10 +117,21 @@ export class Chat extends React.Component {
     let userName = nickname
     // eslint-disable-next-line
     const id = _this.state.ipfsId
-    const msgText = { username: userName, message: message, status: "message" }
-    const msgEncoded = _this.state.ipfs.types.Buffer.from(JSON.stringify(msgText))
+    let msgText = {
+      username: userName,
+      message: message,
+      status: "message"
+    }
+    let entry = { nickname: nickname, message: message }
+    // Only encrypt private  chat
+    if (_this.props.channelSend !== _this.props.PUBSUB_CHANNEL) {
+      msgText = await encrypt(JSON.stringify(msgText), _this.state.passEncryption)
+      entry = await encrypt(JSON.stringify(entry), _this.state.passEncryption)
+    }
+
+    const msgEncoded = Buffer.from(JSON.stringify(msgText))
     _this.state.ipfs.pubsub.publish(ch, msgEncoded)
-   /* if (_this.props.channelSend == _this.props.PUBSUB_CHANNEL)*/ _this.props.query(userName, msgText.message);
+    _this.props.AddMessage(entry);
   }
   componentDidMount() {
     const usernameElement = document.getElementById("nickname")
@@ -112,13 +150,18 @@ export class Chat extends React.Component {
           message: "",
           status: "message"
         },
-        chatWith:this.props.chatWith,
+        chatWith: this.props.chatWith,
+        passEncryption: this.props.passEncryption
       })
       if (this.props.username !== prevProps.username) {
         const usernameElement = document.getElementById("nickname")
         usernameElement.value = this.props.username
       }
-
+      if (this.props.dbIsReady !== prevProps.dbIsReady) {
+        this.setState({
+          dbIsReady: this.props.dbIsReady
+        })
+      }
     }
   }
 }
@@ -130,10 +173,12 @@ Chat.propTypes = {
   output: PropTypes.string,
   channelSend: PropTypes.string,
   PUBSUB_CHANNEL: PropTypes.string,
-  query: PropTypes.func,
+  AddMessage: PropTypes.func,
   changeUserName: PropTypes.func,
   username: PropTypes.string,
   chatWith: PropTypes.string,
+  dbIsReady: PropTypes.bool,
+  passEncryption: PropTypes.string
 
 }
 export default Chat;
