@@ -10,7 +10,7 @@ const { decrypt } = require('../components/encryption')
 //const MASTER_MULTIADDR = `/ip4/138.68.212.34/tcp/4003/ws/ipfs/QmauKY7Sh47ZD49oy9VT1e9djHXmUjXfP6qPn4CnbEcXSn`
 const MASTER_MULTIADDR = `/dns4/wss.psfoundation.cash/tcp/443/wss/ipfs/QmaUW4oCVPUFLRqeSjvhHwGFJHGWrYWLBEt7WxnexDm3Xa`
 
-let DB_ADDRESS = `/orbitdb/zdpuAzAkWaD6niC8AjSt1jb1pVx9fwECFC96dsczSQvTrH1Di/orbitddbchatappipfs987979`
+let DB_ADDRESS = `/orbitdb/zdpuAwv8VBZUtY7mbjFqgVkAvntwpvVZP8AH5raqSnZwy7TE5/orbitdbchatipfs987333979`
 
 let myDateConnection = new Date()
 let PUBSUB_CHANNEL = 'ipfsObitdb-chat'
@@ -176,7 +176,7 @@ export class chatapp extends React.Component {
         }
       }, 1000)
 
-            /* 
+            /*
       Subscribe to my own channel.
       This  get info to personal chat request
       */
@@ -310,7 +310,7 @@ export class chatapp extends React.Component {
   }
 
 
-  // Adding messages to  event log orbit db 
+  // Adding messages to  event log orbit db
   async AddMessage(entry) {
     try {
 
@@ -325,7 +325,7 @@ export class chatapp extends React.Component {
   async queryGet() {
 
     try {
-      //get messages from db 
+      //get messages from db
       let latestMessages = db.iterator({ limit: 10 }).collect()
       // Validate - decrypt private messages. PUBSUB_CHANNEL is public chat
       if (_this.state.channelSend === PUBSUB_CHANNEL) {
@@ -345,7 +345,7 @@ export class chatapp extends React.Component {
       console.error(e)
     }
   }
-  //Decrypt message from  db 
+  //Decrypt message from  db
   async getDataDecrypted(arrayData) {
     let output = ''
     if (arrayData.length == 0) {
@@ -422,7 +422,7 @@ export class chatapp extends React.Component {
       return
     }
     try {
-      //get username from data base 
+      //get username from data base
       const userName = await db_nicknameControl.get(myNameStoreKey)
       // Uses username previously saved
       if (userName) {
@@ -430,7 +430,7 @@ export class chatapp extends React.Component {
           username: userName.username,
         })
       } else {
-        // If there's no username on the database, 
+        // If there's no username on the database,
         //adds random username assigned
         await db_nicknameControl.set(myNameStoreKey, {
           username: _this.state.username,
