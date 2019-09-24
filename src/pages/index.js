@@ -56,13 +56,17 @@ export class chatapp extends React.Component {
     username: 'Node' + Math.floor(Math.random() * 900 + 100).toString(),
     chatWith: 'All',
     dbIsReady: false,
-    passEncryption: ''
+    passEncryption: '',
   }
 
   constructor(props) {
     super(props)
+
     _this = this
+
+    // Exit if IPFS or OrbitDB are not avaiable in the browser.
     if (!IPFS || !OrbitDB) return
+
     //connect to IPFS
     const ipfs = new IPFS({
       repo: './orbitdbipfs/chatapp/ipfs',
@@ -78,6 +82,7 @@ export class chatapp extends React.Component {
       config: {
         Addresses: {
           Swarm: [MASTER_MULTIADDR],
+          // TODO: Ensure other public wss servers are added to the swarm.
         },
       },
     })
@@ -85,16 +90,18 @@ export class chatapp extends React.Component {
     ipfs.on('ready', async () => {
       console.log('ipfs ready')
 
+      // Pass the IPFS instance to the window object. Makes it easy to debug IPFS
+      // issues in the browser console.
       if (typeof window !== 'undefined') window.ipfs = ipfs
 
-      //Create OrbitDB instance
+      // Create OrbitDB instance
       const optionsDb = {
         directory: './orbitdbipfs/chatapp/store',
       }
       const orbitdb = await OrbitDB.createInstance(ipfs, optionsDb)
       console.log('orbitdb ready')
 
-      //store ipfs and orbitdb in state
+      // store ipfs and orbitdb in state
       let ipfsId = await ipfs.id()
       _this.setState({
         ipfs: ipfs,
@@ -102,14 +109,15 @@ export class chatapp extends React.Component {
         ipfsId: ipfsId.id,
       })
 
-      // Connect to the chat server.
+      // Wait until we can connect to the chat server.
       // Multiple connections will blacklist the server.
       await _this.state.ipfs.swarm.connect(MASTER_MULTIADDR)
       console.log(`Connected to master node.`)
       _this.setState({
         masterConnected: true,
       })
-      //Instantiated db key value to store my username
+
+      // Instantiate db key-value to store my username
       try {
         const access = {
           // Give write access to everyone
@@ -124,9 +132,12 @@ export class chatapp extends React.Component {
       } catch (e) {
         console.error(e)
       }
+
+      // Verify, obtain and make persistent my username
       _this.getUserName()
 
-      _this.createDb(DB_ADDRESS) // create db
+      // Create a local instance of the group chat database.
+      _this.createDb(DB_ADDRESS)
 
       //Subscribe to master channel
       channelsSuscriptions.push(PUBSUB_CHANNEL)
@@ -147,6 +158,7 @@ export class chatapp extends React.Component {
             })
           }
         }
+
         //Recived status online to master to control my status
         if (jsonData.status === 'online' && jsonData.username === 'system') {
           if (_this.state.isConnected === false) {
@@ -176,7 +188,7 @@ export class chatapp extends React.Component {
         }
       }, 1000)
 
-            /*
+      /*
       Subscribe to my own channel.
       This  get info to personal chat request
       */
@@ -186,7 +198,7 @@ export class chatapp extends React.Component {
         if (jsonData.peer1 === ipfsId.id) {
           _this.setState({
             channelSend: jsonData.channelName,
-            passEncryption: jsonData.pass
+            passEncryption: jsonData.pass,
           })
           let flag = true
           _this.createDb(jsonData.dbName, true)
@@ -250,20 +262,20 @@ export class chatapp extends React.Component {
             ></Users>
           </ContainerUsers>
           <ContainerChat>
-              <Chat
-                ipfs={_this.state.ipfs}
-                orbitdb={_this.state.orbitdb}
-                ipfsId={_this.state.ipfsId}
-                output={_this.state.output}
-                channelSend={_this.state.channelSend}
-                PUBSUB_CHANNEL={PUBSUB_CHANNEL}
-                username={_this.state.username}
-                AddMessage={_this.AddMessage}
-                changeUserName={_this.getUserName}
-                chatWith={_this.state.chatWith}
-                passEncryption={_this.state.passEncryption}
-                dbIsReady={_this.state.dbIsReady}
-              ></Chat>
+            <Chat
+              ipfs={_this.state.ipfs}
+              orbitdb={_this.state.orbitdb}
+              ipfsId={_this.state.ipfsId}
+              output={_this.state.output}
+              channelSend={_this.state.channelSend}
+              PUBSUB_CHANNEL={PUBSUB_CHANNEL}
+              username={_this.state.username}
+              AddMessage={_this.AddMessage}
+              changeUserName={_this.getUserName}
+              chatWith={_this.state.chatWith}
+              passEncryption={_this.state.passEncryption}
+              dbIsReady={_this.state.dbIsReady}
+            ></Chat>
           </ContainerChat>
         </ContainerFlex>
       </div>
@@ -303,17 +315,15 @@ export class chatapp extends React.Component {
     if (!_this.state.ipfs) return
     channelsSuscriptions.push(channelName)
     _this.state.ipfs.pubsub.subscribe(channelName, data => {
-     const jsonData = JSON.parse(data.data.toString())
-     console.log(jsonData)
+      const jsonData = JSON.parse(data.data.toString())
+      console.log(jsonData)
     })
     console.warn('subscribed to : ' + channelName)
   }
 
-
   // Adding messages to  event log orbit db
   async AddMessage(entry) {
     try {
-
       await db.add(entry)
       _this.queryGet()
     } catch (e) {
@@ -323,7 +333,6 @@ export class chatapp extends React.Component {
 
   // Get the the latest messages from the event log DB.
   async queryGet() {
-
     try {
       //get messages from db
       let latestMessages = db.iterator({ limit: 10 }).collect()
@@ -332,7 +341,9 @@ export class chatapp extends React.Component {
         let output = ''
         output +=
           latestMessages
-            .map(e => e.payload.value.nickname + ' : ' + e.payload.value.message)
+            .map(
+              e => e.payload.value.nickname + ' : ' + e.payload.value.message
+            )
             .join('\n') + `\n`
         _this.setState({
           output: output,
@@ -355,11 +366,7 @@ export class chatapp extends React.Component {
       return
     }
     arrayData.map(async (val, i) => {
-
-      let decoded = await decrypt(
-        val.payload.value,
-        _this.state.passEncryption
-      )
+      let decoded = await decrypt(val.payload.value, _this.state.passEncryption)
       let ObjectDecode = JSON.parse(decoded)
       output += `${ObjectDecode.nickname} : ${ObjectDecode.message} \n`
       if (i >= arrayData.length - 1) {
@@ -368,8 +375,6 @@ export class chatapp extends React.Component {
         })
       }
     })
-
-
   }
   // Request a private chat session with another user.
   async requestPersonChat(peerClient, reset) {
@@ -385,9 +390,8 @@ export class chatapp extends React.Component {
     const myID = _this.state.ipfsId
     const clientId = peerClient.toString()
     const newChannelName = myID + clientId
-    const newDbName = newChannelName +
-      Math.floor(Math.random() *
-        10000 + 1000).toString()
+    const newDbName =
+      newChannelName + Math.floor(Math.random() * 10000 + 1000).toString()
 
     const msg = {
       status: 'requestChat',
@@ -410,9 +414,9 @@ export class chatapp extends React.Component {
     })
   }
 
-  //Verify, obtain and make persistent my username
+  // Verify, obtain and make persistent my username
   async getUserName(changeUserName, username) {
-    //Edit my username on the database(key-value)
+    // Edit my username on the database(key-value)
     if (changeUserName === true) {
       if (username === _this.state.username) return
       await db_nicknameControl.set(myNameStoreKey, { username: username })
