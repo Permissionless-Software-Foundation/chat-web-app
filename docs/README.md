@@ -14,5 +14,11 @@ After the user name database has been handled, the app creates a local instance 
 A `PUBSUB_CHANNEL` or 'master channel' is created for sharing group chats.
 `What's the difference between the pubsub master channel and the main OrbitDB?`
 
+## Group Chat
+*Give a written description of the top flow chart, covering group chat.*
+
+## Person-to-person Chat
+*Give a written description of the bottom flow chart, covering person-to-person chats.*
+
 ## Encryption
 *Describe how the encryption works. In particular focus on how the passwords get passed from one node to the next. Discuss potential attack vectors in detail.*
