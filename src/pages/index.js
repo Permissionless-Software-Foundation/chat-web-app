@@ -79,12 +79,6 @@ export class chatapp extends React.Component {
           enabled: true, // enable circuit relay HOP (make this node a relay)
         },
       },
-      config: {
-        Addresses: {
-          Swarm: [MASTER_MULTIADDR],
-          // TODO: Ensure other public wss servers are added to the swarm.
-        },
-      },
     })
 
     ipfs.on('ready', async () => {
@@ -116,7 +110,16 @@ export class chatapp extends React.Component {
       _this.setState({
         masterConnected: true,
       })
+      // Get bootstrap list and peers connections
+      if (typeof window !== 'undefined') {
 
+        let bootstrapList = await window.ipfs.bootstrap.list()
+        let peersList = await window.ipfs.swarm.peers()
+        console.log(`Bootstrap list: `)
+        console.log(bootstrapList)
+        console.log(`Peers list: `)
+        console.log(peersList)
+      }
       // Instantiate db key-value to store my username
       try {
         const access = {
