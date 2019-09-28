@@ -42,7 +42,7 @@ const crypto = require('crypto')
       return decrypted
     } catch (error) {
       console.log('Error in encrypt.js/decrypt()')
-      throw error
+      return false
     }
   }
 

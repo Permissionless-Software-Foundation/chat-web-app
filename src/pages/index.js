@@ -4,6 +4,8 @@ import { Users } from '../components/ipfs/Users'
 import { Chat } from '../components/ipfs/Chat'
 import styled from 'styled-components'
 import { Buffer } from 'ipfs'
+import SoundMute from '../assets/images/volume-mute-solid.svg'
+import SoundUp from '../assets/images/volume-up-solid.svg'
 const IPFS = typeof window !== `undefined` ? require('ipfs') : null
 const OrbitDB = typeof window !== `undefined` ? require('orbit-db') : null
 const { decrypt } = require('../components/encryption')
@@ -57,6 +59,7 @@ export class chatapp extends React.Component {
     chatWith: 'All',
     dbIsReady: false,
     passEncryption: '',
+    sound: false
   }
 
   constructor(props) {
@@ -77,6 +80,12 @@ export class chatapp extends React.Component {
         enabled: true, // enable circuit relay dialer and listener
         hop: {
           enabled: true, // enable circuit relay HOP (make this node a relay)
+        },
+      },
+      config: {
+        Addresses: {
+          Swarm: [MASTER_MULTIADDR],
+          // TODO: Ensure other public wss servers are added to the swarm.
         },
       },
     })
@@ -110,16 +119,7 @@ export class chatapp extends React.Component {
       _this.setState({
         masterConnected: true,
       })
-      // Get bootstrap list and peers connections
-      if (typeof window !== 'undefined') {
 
-        let bootstrapList = await window.ipfs.bootstrap.list()
-        let peersList = await window.ipfs.swarm.peers()
-        console.log(`Bootstrap list: `)
-        console.log(bootstrapList)
-        console.log(`Peers list: `)
-        console.log(peersList)
-      }
       // Instantiate db key-value to store my username
       try {
         const access = {
@@ -161,7 +161,9 @@ export class chatapp extends React.Component {
             })
           }
         }
-
+        if (jsonData.status === 'message' && data.from !== _this.state.ipfsId) {
+          _this.playSound();
+        }
         //Recived status online to master to control my status
         if (jsonData.status === 'online' && jsonData.username === 'system') {
           if (_this.state.isConnected === false) {
@@ -218,6 +220,7 @@ export class chatapp extends React.Component {
   render() {
     return (
       <div>
+        <audio id="audio" src="http://blender.freemovies.co.uk/blenderfiles/car/bell.wav" autoPlay={false} ></audio>
         <ContainerStatus>
           <SpanText>
             NODE IPFS:{' '}
@@ -251,6 +254,21 @@ export class chatapp extends React.Component {
                 : ` Connected!!  `}
             </b>
           </SpanText>
+          <span className="container-sound">
+        {
+          _this.state.sound ?
+          <img src={SoundUp}
+            width="20"
+            heigth="20"
+            onClick={_this.soundStatus}>
+          </img>
+          : <img src={SoundMute}
+            width="20"
+            heigth="20"
+            onClick={_this.soundStatus}>
+          </img>
+        }
+        </span>
         </ContainerStatus>
         <ContainerFlex>
           <ContainerUsers>
@@ -284,7 +302,18 @@ export class chatapp extends React.Component {
       </div>
     )
   }
+  playSound() {
+    if (!_this.state.sound) return
+    const sound = document.getElementById("audio");
+    sound.play();
+  }
+  soundStatus() {
 
+    _this.setState({
+      sound: !_this.state.sound,
+    })
+
+  }
   // Create a new instance of a database.
   async createDb(db_addrs, createNew = false) {
     try {
@@ -320,6 +349,9 @@ export class chatapp extends React.Component {
     _this.state.ipfs.pubsub.subscribe(channelName, data => {
       const jsonData = JSON.parse(data.data.toString())
       console.log(jsonData)
+      if (data.from !== _this.state.ipfsId) {
+        _this.playSound();
+      }
     })
     console.warn('subscribed to : ' + channelName)
   }
@@ -336,10 +368,13 @@ export class chatapp extends React.Component {
 
   // Get the the latest messages from the event log DB.
   async queryGet() {
+
     try {
       //get messages from db
       let latestMessages = db.iterator({ limit: 10 }).collect()
+      console.log(latestMessages)
       // Validate - decrypt private messages. PUBSUB_CHANNEL is public chat
+
       if (_this.state.channelSend === PUBSUB_CHANNEL) {
         let output = ''
         output +=
@@ -353,11 +388,15 @@ export class chatapp extends React.Component {
         })
       } else {
         //Decrytp db value
+        console.log("decrypted")
         _this.getDataDecrypted(latestMessages)
       }
     } catch (e) {
       console.error(e)
     }
+    setTimeout(() => {
+      console.log(_this.state.channelSend)
+    }, 1500)
   }
   //Decrypt message from  db
   async getDataDecrypted(arrayData) {
@@ -370,12 +409,14 @@ export class chatapp extends React.Component {
     }
     arrayData.map(async (val, i) => {
       let decoded = await decrypt(val.payload.value, _this.state.passEncryption)
-      let ObjectDecode = JSON.parse(decoded)
-      output += `${ObjectDecode.nickname} : ${ObjectDecode.message} \n`
-      if (i >= arrayData.length - 1) {
-        _this.setState({
-          output: output,
-        })
+      if (decoded) {
+        let ObjectDecode = JSON.parse(decoded)
+        output += `${ObjectDecode.nickname} : ${ObjectDecode.message} \n`
+        if (i >= arrayData.length - 1) {
+          _this.setState({
+            output: output,
+          })
+        }
       }
     })
   }
@@ -411,9 +452,10 @@ export class chatapp extends React.Component {
   }
 
   // Switch out randomly-assigned user names with user-selected user names.
-  async updateChatName(chatname) {
+  async updateChatName(chatname, channelName) {
     _this.setState({
       chatWith: chatname,
+      channelSend: channelName
     })
   }
 
