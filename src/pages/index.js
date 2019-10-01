@@ -6,6 +6,7 @@ import styled from 'styled-components'
 import { Buffer } from 'ipfs'
 import SoundMute from '../assets/images/volume-mute-solid.svg'
 import SoundUp from '../assets/images/volume-up-solid.svg'
+
 const IPFS = typeof window !== `undefined` ? require('ipfs') : null
 const OrbitDB = typeof window !== `undefined` ? require('orbit-db') : null
 const { decrypt } = require('../components/encryption')
@@ -24,26 +25,6 @@ let db
 
 let _this
 
-const ContainerFlex = styled.div`
-  display: flex;
-  padding: 1em;
-`
-const SpanText = styled.span`
-  margin: 1em;
-`
-const ContainerStatus = styled.div`
-  width: 100%;
-  padding: 1em;
-`
-
-const ContainerUsers = styled.div`
-  width: 40%;
-  text-align: center;
-`
-const ContainerChat = styled.div`
-  width: 60%;
-  text-align: center;
-`
 export class chatapp extends React.Component {
   state = {
     ipfs: null,
@@ -59,7 +40,8 @@ export class chatapp extends React.Component {
     chatWith: 'All',
     dbIsReady: false,
     passEncryption: '',
-    sound: false
+    sound: false,
+    showArrow: false
   }
 
   constructor(props) {
@@ -80,6 +62,12 @@ export class chatapp extends React.Component {
         enabled: true, // enable circuit relay dialer and listener
         hop: {
           enabled: true, // enable circuit relay HOP (make this node a relay)
+        },
+      },
+      config: {
+        Addresses: {
+          Swarm: [MASTER_MULTIADDR],
+          // TODO: Ensure other public wss servers are added to the swarm.
         },
       },
     })
@@ -113,16 +101,6 @@ export class chatapp extends React.Component {
       _this.setState({
         masterConnected: true,
       })
-      // Get bootstrap list and peers connections
-      if (typeof window !== 'undefined') {
-
-        let bootstrapList = await window.ipfs.bootstrap.list()
-        let peersList = await window.ipfs.swarm.peers()
-        console.log(`Bootstrap list: `)
-        console.log(bootstrapList)
-        console.log(`Peers list: `)
-        console.log(peersList)
-      }
 
       // Instantiate db key-value to store my username
       try {
@@ -224,58 +202,68 @@ export class chatapp extends React.Component {
   render() {
     return (
       <div>
+
         <audio id="audio" src="http://blender.freemovies.co.uk/blenderfiles/car/bell.wav" autoPlay={false} ></audio>
-        <ContainerStatus>
-          <SpanText>
+        <div className="container-status">
+          <span id="container-arrow" className="container-arrow ">
+            {(_this.state.showArrow && window.screen.width <= 720) ?
+              <i className="fa fa-arrow-left"
+                aria-hidden="true"
+                onClick={_this.changeCss}>
+              </i>
+              : ''
+            }
+          </span>
+          <span className="span-text">
             NODE IPFS:{' '}
             <b>
               {_this.state.ipfs === null
                 ? ` Not Instantiated`
                 : ` Instantiated`}
             </b>
-          </SpanText>
-          <SpanText>
+          </span>
+          <span className="span-text">
             ORBITDB:
             <b>
               {_this.state.orbitdb === null
                 ? ` Not Instantiated  `
                 : `Instantiated  `}
             </b>
-          </SpanText>
-          <SpanText>
+          </span>
+          <span className="span-text">
             IPFS CONNECTION:{' '}
             <b>
               {_this.state.masterConnected === false
                 ? ` Connecting to master ....  `
                 : ` Connected!!  `}
             </b>
-          </SpanText>
-          <SpanText>
+          </span>
+          <span className="span-text status">
             CHAT STATUS:{' '}
             <b>
               {_this.state.isConnected === false
                 ? ` Disconnected  `
                 : ` Connected!!  `}
             </b>
-          </SpanText>
+          </span>
           <span className="container-sound">
-        {
-          _this.state.sound ?
-          <img src={SoundUp}
-            width="20"
-            heigth="20"
-            onClick={_this.soundStatus}>
-          </img>
-          : <img src={SoundMute}
-            width="20"
-            heigth="20"
-            onClick={_this.soundStatus}>
-          </img>
-        }
-        </span>
-        </ContainerStatus>
-        <ContainerFlex>
-          <ContainerUsers>
+            {
+              _this.state.sound ?
+                <img src={SoundUp}
+                  width="20"
+                  heigth="20"
+                  onClick={_this.soundStatus}>
+                </img>
+                : <img src={SoundMute}
+                  width="20"
+                  heigth="20"
+                  onClick={_this.soundStatus}>
+                </img>
+            }
+          </span>
+        </div>
+        <div className="container-flex">
+          <div id="container-users" className="container-users">
             <Users
               ipfs={_this.state.ipfs}
               orbitdb={_this.state.orbitdb}
@@ -284,9 +272,10 @@ export class chatapp extends React.Component {
               ipfsId={_this.state.ipfsId}
               requestPersonChat={_this.requestPersonChat}
               updateChatName={_this.updateChatName}
+              changeCss={_this.changeCss}
             ></Users>
-          </ContainerUsers>
-          <ContainerChat>
+          </div>
+          <div id="container-chat" className="container-chat">
             <Chat
               ipfs={_this.state.ipfs}
               orbitdb={_this.state.orbitdb}
@@ -301,10 +290,42 @@ export class chatapp extends React.Component {
               passEncryption={_this.state.passEncryption}
               dbIsReady={_this.state.dbIsReady}
             ></Chat>
-          </ContainerChat>
-        </ContainerFlex>
+          </div>
+        </div>
       </div>
     )
+  }
+
+  // change css . display users or chat containers for mobile 
+  changeCss(goToChat) {
+
+    if (window.screen.width > 720) return; // if non mobile device
+
+    // show users container for mobile device
+    _this.setState({
+      showArrow: false,
+    })
+    const usersElement = document.getElementById("container-users");
+    usersElement.className = "container-users";
+    const chatElement = document.getElementById("container-chat");
+    chatElement.className = "container-chat";
+
+
+    //show chat containers  for mobile device
+    if (goToChat === true) {
+      _this.setState({
+        showArrow: true,
+      })
+
+      const usersElement = document.getElementById("container-users");
+      usersElement.className = usersElement.className + " hide-container-users";
+
+      const chatElement = document.getElementById("container-chat");
+      chatElement.className = chatElement.className + " show-container-chat";
+
+    }
+
+
   }
   playSound() {
     if (!_this.state.sound) return
@@ -376,6 +397,7 @@ export class chatapp extends React.Component {
     try {
       //get messages from db
       let latestMessages = db.iterator({ limit: 10 }).collect()
+      console.log(latestMessages)
       // Validate - decrypt private messages. PUBSUB_CHANNEL is public chat
 
       if (_this.state.channelSend === PUBSUB_CHANNEL) {
@@ -391,6 +413,7 @@ export class chatapp extends React.Component {
         })
       } else {
         //Decrytp db value
+        console.log("decrypted")
         _this.getDataDecrypted(latestMessages)
       }
     } catch (e) {

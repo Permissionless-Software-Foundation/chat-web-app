@@ -70,13 +70,175 @@
 	@import 'layout/wrapper';
 	@import 'layout/menu';
 
-	.container-sound{
+
+
+// Css Chat App Index
+.container-sound{
 			cursor:pointer;
 			height: 25px;
 			padding-top:5px;
 			margin-bottom: -4px;
 		}
-		.container-sound img{
+.container-sound img{
 
 			margin-bottom: -4px;
 		}
+
+.span-text {
+	margin: 1em;
+}
+
+.container-flex {
+  display: flex;
+  padding: 1em;
+}
+
+.container-status {
+  width: 100%;
+  padding: 1em;
+}
+
+.container-users {
+  width: 40%;
+  text-align: center;
+}
+
+.container-chat {
+  width: 60%;
+  text-align: center;
+}
+
+// Css Component Chat
+
+.chat-container {
+  padding: 1em;
+  padding-left:0px!important
+}
+
+.container-send {
+  display: flex;
+  margin-bottom: 25px;
+}
+
+.input-nickname {
+  width:25%!important;
+  margin-right:0.5em;
+}
+
+.chat-name {
+  //cursor:pointer;
+	margin-bottom: 0.5em!important;
+    padding: 0.5em;
+    background-color: rgba(0,0,0,0.1)!important;
+    width: 100%;
+    margin: 0 auto;
+}
+
+// Css Component Users
+
+.onlines-name {
+    cursor:pointer;
+    margin-bottom: 0.5em!important;
+    padding: 0.5em;
+    background-color: rgba(0,0,0,0.1)!important;
+    width: 100%;
+    margin: 0 auto;
+}
+
+.onlines-data {
+  	margin-bottom: 0.5em!important;
+    padding: 0.5em;
+    background-color: rgba(0,0,0,0.1)!important;
+    width: 100%;
+    margin: 0 auto;
+    text-align:center
+}
+
+.user-container {
+  padding: 1em;
+  padding-right:0px!important;
+}
+.container-arrow {
+ display:none;
+
+}
+
+//responsive
+
+@media only screen and (max-width: 720px) {
+.container-users {
+  width: 100%;
+}
+
+.container-chat {
+    width: 100%;
+    display:none
+}
+.container-status .span-text{
+	 display:none
+}
+.container-status{
+   display:flex!important;
+   justify-content:space-between!important ;
+   height: 40px;
+   margin-bottom: 1em;
+
+    }
+.hide-container-users {
+	  display:none
+}  
+
+.show-container-chat ,.container-arrow ,.container-send{
+ 	 display:block
+} 
+.input-nickname ,.input-message {
+	 width: 100%!important;
+	 margin-bottom:5px;
+}
+.btn-send{
+	 width: 100%!important;
+	 margin-top:15px;
+}
+
+.container-sound img,.container-arrow i{
+    width: 30px;
+    height: 30px;
+    font-size: 30px;
+}
+.status{
+    display:block!important
+}
+.container-sound {
+   margin-top:5px;
+}
+.user-container , .chat-container{
+   margin-top:5px;
+   padding:0px;
+}
+}
+@media only screen and (max-width: 1024px) {
+
+.container-status .span-text{
+	 display:none
+}
+
+.container-sound img,.container-arrow ,.container-arrow i{
+    width: 30px;
+    height: 30px;
+    font-size: 30px;
+}
+.container-arrow {
+    display:block!important
+}
+.container-status{
+   display:flex!important;
+   justify-content:space-between!important ;
+   height: 40px;
+    }
+.status{
+   display:block!important
+}
+.container-sound{
+   margin-top:5px;
+}
+}
