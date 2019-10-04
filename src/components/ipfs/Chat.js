@@ -1,30 +1,10 @@
 import React from 'react';
 import PropTypes from 'prop-types'
-import styled from 'styled-components'
 import { Buffer } from 'ipfs'
 const { encrypt } = require('../encryption')
 
 let _this
-const ChatContainer = styled.div`
-  padding: 1em;
-  padding-left:0px!important
-`
-const ContainerSend = styled.div`
-  display: flex;
-  margin-bottom: 25px;
-`
-const InputNickname = styled.input`
- width:25%!important;
- margin-right:0.5em;
-`
-const ChatName = styled.h4`
-//cursor:pointer;
-margin-bottom: 0.5em!important;
-    padding: 0.5em;
-   background-color: rgba(0,0,0,0.1)!important;
-   width: 100%;
-    margin: 0 auto;
-`
+
 export class Chat extends React.Component {
 
 
@@ -51,10 +31,10 @@ export class Chat extends React.Component {
 
   render() {
     return (
-      <ChatContainer>
+      <div className="chat-container">
         {_this.state.dbIsReady ?
-          <ChatName>Chat With : <b>{_this.state.chatWith}</b></ChatName> :
-          <ChatName> <b>Loading Chat..</b></ChatName>}
+          <h4 className="chat-name">Chat With : <b>{_this.state.chatWith}</b></h4> :
+          <h4 className="chat-name"> <b>Loading Chat..</b></h4>}
 
         <textarea id="chatArea"
           name="chatArea"
@@ -65,14 +45,16 @@ export class Chat extends React.Component {
         </textarea>
         <br></br>
         <br></br>
-        <ContainerSend>
-          <InputNickname
+        <div className="container-send">
+          <input
+            className="input-nickname"
             disabled={!_this.state.dbIsReady}
             type="text" id="nickname"
             name="nickname"
             placeholder="nickname">
-          </InputNickname>
+          </input>
           <input
+            className="input-message"
             disabled={!_this.state.dbIsReady}
             id="msg"
             name="msg"
@@ -85,10 +67,11 @@ export class Chat extends React.Component {
               }
             }}></input>
           <button
+            className="btn-send"
             disabled={!_this.state.dbIsReady}
             onClick={this.handleUpdateMsg}>Send.</button>
-        </ContainerSend>
-      </ChatContainer>
+        </div>
+      </div>
     );
   }
 
@@ -108,7 +91,7 @@ export class Chat extends React.Component {
     }))
     _this.sendMessg(nicknameValue, msgValue, _this.props.channelSend, false);
     document.getElementById("msg").value = ""
-    _this.props.changeUserName(true,nicknameValue)
+    _this.props.changeUserName(true, nicknameValue)
   }
   async sendMessg(nickname, message, channel, useLocalChannel) {
     if (!_this.state.ipfs) return;
