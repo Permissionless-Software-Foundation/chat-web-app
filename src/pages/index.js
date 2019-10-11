@@ -2,17 +2,16 @@
 import React from 'react'
 import { Users } from '../components/ipfs/Users'
 import { Chat } from '../components/ipfs/Chat'
-import styled from 'styled-components'
 import { Buffer } from 'ipfs'
+import { keygen, decrypt, encrypt } from '../components/encryptionpgp'
 import SoundMute from '../assets/images/volume-mute-solid.svg'
 import SoundUp from '../assets/images/volume-up-solid.svg'
 
+
 const IPFS = typeof window !== `undefined` ? require('ipfs') : null
 const OrbitDB = typeof window !== `undefined` ? require('orbit-db') : null
-const { decrypt } = require('../components/encryption')
-//const MASTER_MULTIADDR = `/ip4/138.68.212.34/tcp/4003/ws/ipfs/QmauKY7Sh47ZD49oy9VT1e9djHXmUjXfP6qPn4CnbEcXSn`
-const MASTER_MULTIADDR = `/dns4/wss.psfoundation.cash/tcp/443/wss/ipfs/QmaUW4oCVPUFLRqeSjvhHwGFJHGWrYWLBEt7WxnexDm3Xa`
 
+const MASTER_MULTIADDR = `/dns4/wss.psfoundation.cash/tcp/443/wss/ipfs/QmaUW4oCVPUFLRqeSjvhHwGFJHGWrYWLBEt7WxnexDm3Xa`
 let DB_ADDRESS = `/orbitdb/zdpuAwv8VBZUtY7mbjFqgVkAvntwpvVZP8AH5raqSnZwy7TE5/orbitdbchatipfs987333979`
 
 let myDateConnection = new Date()
@@ -39,9 +38,16 @@ export class chatapp extends React.Component {
     username: 'Node' + Math.floor(Math.random() * 900 + 100).toString(),
     chatWith: 'All',
     dbIsReady: false,
-    passEncryption: '',
-    sound: false,
-    showArrow: false
+    sound: true,
+    showArrow: false,
+    keysData: {
+      passphrase: '',
+      privkey: '',
+      pubkey: '',
+      revocationCertificate: '',
+      privKeyObj: ''
+    },
+    chatPublicKey: ''
   }
 
   constructor(props) {
@@ -121,6 +127,9 @@ export class chatapp extends React.Component {
       // Verify, obtain and make persistent my username
       _this.getUserName()
 
+      //Verify , obtain and make encryption keys
+      _this.getKeysData()
+
       // Create a local instance of the group chat database.
       _this.createDb(DB_ADDRESS)
 
@@ -136,14 +145,16 @@ export class chatapp extends React.Component {
               : onlineUsers.push(nodes)
           }
           let Nodes = [...onlineUsers]
-
+          //console.log(onlineUsers)
           if (_this.state.onlineNodes != onlineUsers) {
             _this.setState({
               onlineNodes: [...onlineUsers],
             })
           }
         }
-        if (jsonData.status === 'message' && data.from !== _this.state.ipfsId) {
+        if (jsonData.status === 'message' &&
+          data.from !== _this.state.ipfsId &&
+          _this.state.chatWith === 'All') {
           _this.playSound();
         }
         //Recived status online to master to control my status
@@ -159,7 +170,11 @@ export class chatapp extends React.Component {
 
       //Send status online to master to control online users
       setInterval(() => {
-        const msg = { status: 'online', username: _this.state.username }
+        const msg = {
+          status: 'online',
+          username: _this.state.username,
+          publicKey: _this.state.keysData.pubkey
+        }
         const msgEncoded = Buffer.from(JSON.stringify(msg))
         _this.state.ipfs.pubsub.publish(PUBSUB_CHANNEL, msgEncoded, err => {
           if (err) {
@@ -185,15 +200,14 @@ export class chatapp extends React.Component {
         if (jsonData.peer1 === ipfsId.id) {
           _this.setState({
             channelSend: jsonData.channelName,
-            passEncryption: jsonData.pass,
           })
           let flag = true
-          _this.createDb(jsonData.dbName, true)
+          _this.createDb(jsonData.peer2 + jsonData.dbName, true)
           for (let i = 0; i < channelsSuscriptions.length; i++)
             // verify existing subscriptions
             if (flag && channelsSuscriptions[i] === jsonData.channelName)
               flag = false
-          flag && _this.subscribe(jsonData.channelName)
+          flag && _this.subscribe(jsonData.channelName) // subscribe to private ch chat
         }
       })
     })
@@ -287,8 +301,10 @@ export class chatapp extends React.Component {
               AddMessage={_this.AddMessage}
               changeUserName={_this.getUserName}
               chatWith={_this.state.chatWith}
-              passEncryption={_this.state.passEncryption}
+              myPublicKey={_this.state.keysData.pubkey}
               dbIsReady={_this.state.dbIsReady}
+              chatPublicKey={_this.state.chatPublicKey}
+              updateOutput={_this.updateOutput}
             ></Chat>
           </div>
         </div>
@@ -342,6 +358,10 @@ export class chatapp extends React.Component {
   // Create a new instance of a database.
   async createDb(db_addrs, createNew = false) {
     try {
+      _this.setState({
+        output: '',
+      })
+
       const access = {
         accessController: {
           write: ['*'],
@@ -352,15 +372,16 @@ export class chatapp extends React.Component {
 
       await db.load()
 
+      await _this.queryGet()
       _this.setState({
         dbIsReady: true,
       })
 
-      _this.queryGet()
 
       db.events.on('replicated', db_addrs => {
-        _this.queryGet()
-        console.warn('replicated event')
+        if (_this.state.chatWith === 'All')
+          _this.queryGet()
+        //console.warn('replicated event')
       })
     } catch (e) {
       console.error(e)
@@ -371,18 +392,41 @@ export class chatapp extends React.Component {
   async subscribe(channelName) {
     if (!_this.state.ipfs) return
     channelsSuscriptions.push(channelName)
-    _this.state.ipfs.pubsub.subscribe(channelName, data => {
+    _this.state.ipfs.pubsub.subscribe(channelName, async  data => {
       const jsonData = JSON.parse(data.data.toString())
-      console.log(jsonData)
-      if (data.from !== _this.state.ipfsId) {
-        _this.playSound();
+      //verify message from another user
+      if ((data.from !== _this.state.ipfsId)) {
+        // decrypt message
+        let msgDecrypted = await decrypt(_this.state.keysData.privkey, _this.state.keysData.passphrase, jsonData)
+        let msg2 = JSON.parse(msgDecrypted)
+        if (_this.state.chatWith === msg2.username) {
+          let msg = { nickname: msg2.username, message: msg2.message }
+          _this.updateOutput(msg)
+          _this.playSound();
+          // encrypt message 
+          let entry = await encrypt(_this.state.keysData.pubkey, JSON.stringify(msg))
+          await _this.AddMessage(entry) // adding msg to orbit DB
+
+        }
       }
     })
     console.warn('subscribed to : ' + channelName)
   }
 
+  updateOutput(msg) {
+    let output = _this.state.output +
+      msg.nickname + ' : ' +
+      msg.message + `\n`;
+
+
+    _this.setState({
+      output: output,
+    })
+  }
+
   // Adding messages to  event log orbit db
   async AddMessage(entry) {
+
     try {
       await db.add(entry)
       _this.queryGet()
@@ -393,11 +437,14 @@ export class chatapp extends React.Component {
 
   // Get the the latest messages from the event log DB.
   async queryGet() {
-
+    let latestMessages
     try {
-      //get messages from db
-      let latestMessages = db.iterator({ limit: 10 }).collect()
-      console.log(latestMessages)
+
+
+      latestMessages = db.iterator({ limit: 10 }).collect()
+
+
+      // console.log(latestMessages)
       // Validate - decrypt private messages. PUBSUB_CHANNEL is public chat
 
       if (_this.state.channelSend === PUBSUB_CHANNEL) {
@@ -413,15 +460,13 @@ export class chatapp extends React.Component {
         })
       } else {
         //Decrytp db value
-        console.log("decrypted")
+
         _this.getDataDecrypted(latestMessages)
       }
     } catch (e) {
       console.error(e)
     }
-    setTimeout(() => {
-      console.log(_this.state.channelSend)
-    }, 1500)
+
   }
   //Decrypt message from  db
   async getDataDecrypted(arrayData) {
@@ -433,9 +478,15 @@ export class chatapp extends React.Component {
       return
     }
     arrayData.map(async (val, i) => {
-      let decoded = await decrypt(val.payload.value, _this.state.passEncryption)
+
+      //  console.log(val.payload.value)
+      let decoded = await decrypt(_this.state.keysData.privkey, _this.state.keysData.passphrase, val.payload.value)
       if (decoded) {
+
+        // console.log(decoded)
         let ObjectDecode = JSON.parse(decoded)
+
+        // console.log(ObjectDecode)
         output += `${ObjectDecode.nickname} : ${ObjectDecode.message} \n`
         if (i >= arrayData.length - 1) {
           _this.setState({
@@ -446,7 +497,12 @@ export class chatapp extends React.Component {
     })
   }
   // Request a private chat session with another user.
-  async requestPersonChat(peerClient, reset) {
+  async requestPersonChat(value, reset) {
+
+    const peerClient = value.keyId
+
+
+
     //validate for loaded db
     if (_this.state.dbIsReady === false) return
     _this.setState({
@@ -456,11 +512,19 @@ export class chatapp extends React.Component {
       _this.createDb(DB_ADDRESS)
       return PUBSUB_CHANNEL
     }
+
+    _this.setState({
+      chatPublicKey: value.publicKey,
+    })
+    setTimeout(() => {
+      console.log(_this.state.chatPublicKey)
+    }, 1500)
+
     const myID = _this.state.ipfsId
     const clientId = peerClient.toString()
     const newChannelName = myID + clientId
     const newDbName =
-      newChannelName + Math.floor(Math.random() * 10000 + 1000).toString()
+      Math.floor(Math.random() * 10000 + 1000).toString()
 
     const msg = {
       status: 'requestChat',
@@ -469,6 +533,7 @@ export class chatapp extends React.Component {
       peer1: myID,
       peer2: clientId,
       dbId: db.id,
+
     }
     const msgEncoded = Buffer.from(JSON.stringify(msg))
     _this.state.ipfs.pubsub.publish(PUBSUB_CHANNEL, msgEncoded)
@@ -512,6 +577,45 @@ export class chatapp extends React.Component {
       }
     } catch (e) {
       console.error(e)
+    }
+  }
+
+
+  //Verify , obtain and make encryption keys
+  async getKeysData() {
+
+    // get encrypion keys from local storage 
+    const passphrase = localStorage.getItem('passphrase')
+    const privkey = localStorage.getItem('privkey')
+    const pubkey = localStorage.getItem('pubkey')
+    const revocationCertificate = localStorage.getItem('revocationCertificate')
+    const ipfsId = localStorage.getItem('ipfsId')
+    // set encryption keys to state
+    if (privkey && privkey && passphrase && ipfsId === _this.state.ipfsId) {
+
+      _this.setState({
+        keysData: {
+          passphrase: passphrase,
+          privkey: privkey,
+          pubkey: pubkey,
+          revocationCertificate: revocationCertificate,
+        },
+      })
+    } else {
+      localStorage.clear()
+
+      // If there's no encryption keys on the local storage,
+
+      const keysInfo = await keygen()
+
+      _this.setState({
+        keysData: keysInfo,
+      })
+      localStorage.setItem('passphrase', keysInfo.passphrase)
+      localStorage.setItem('privkey', keysInfo.privkey)
+      localStorage.setItem('pubkey', keysInfo.pubkey)
+      localStorage.setItem('revocationCertificate', keysInfo.revocationCertificate)
+      localStorage.setItem('ipfsId', _this.state.ipfsId)
     }
   }
 }
