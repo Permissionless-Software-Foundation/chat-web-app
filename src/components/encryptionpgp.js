@@ -1,5 +1,4 @@
-const openpgp = typeof window !== undefined ? require('openpgp') : null // use as CommonJS, AMD, ES6 module or via window.openpgp
-
+const openpgp= require('openpgp'); // use as CommonJS, AMD, ES6 module or via window.openpgp
 const passphrase = 'super long and hard to guess secret';
 
 
