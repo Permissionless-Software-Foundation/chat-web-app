@@ -1,8 +1,10 @@
-const openpgp= require('openpgp'); // use as CommonJS, AMD, ES6 module or via window.openpgp
-const passphrase = 'super long and hard to guess secret';
+const openpgp= typeof window !== `undefined` ? require('openpgp') :null ; // use as CommonJS, AMD, ES6 module or via window.openpgp
+//openpgp.initWorker({ path:'openpgp.worker.js' }) // set the relative web worker path
+const passphrase = 'super long and hard to guess secret'; // can be random or entered by the user
 
 
 export const keygen = async () => {
+    if(!openpgp) return 
     var options = {
         userIds: [{ name: 'Jon Smith', email: 'jon@example.com' }], // multiple user IDs
         rsaBits: 1024,                                            // RSA key size
@@ -22,16 +24,6 @@ export const keygen = async () => {
         revocationCertificate: keys.revocationCertificate, // '-----BEGIN PGP PUBLIC KEY BLOCK ... '     
         privKeyObj:privKeyObj
     }
-
-   /* console.log('msgE')
-    const msgE = await encrypt(keysData.pubkey, 'mensaje encriptado')
-    console.log(msgE)
-    console.log('msgD')
-    const msgD = await decrypt(keysData.privkey, passphrase, msgE)
-    console.log(msgD)
-
-*/
-
     return keysData
 
 
@@ -39,7 +31,7 @@ export const keygen = async () => {
 keygen()
 
 export const encrypt = async (pubkey, msg) => {
-
+    if(!openpgp) return 
     const options = {
         message: openpgp.message.fromText(msg),       // input as Message object
         publicKeys: (await openpgp.key.readArmored(pubkey)).keys, // for encryption
@@ -55,11 +47,7 @@ export const encrypt = async (pubkey, msg) => {
 }
 
 export const decrypt = async (privkey, passphrase, encrypted) => {
-
-
-
-
-
+    if(!openpgp) return 
     const privKeyObj = (await openpgp.key.readArmored(privkey)).keys[0]
     await privKeyObj.decrypt(passphrase)
     const options = {
@@ -73,7 +61,5 @@ export const decrypt = async (privkey, passphrase, encrypted) => {
 
   
     return decryptedMsg
-
-
 }
 
