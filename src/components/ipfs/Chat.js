@@ -1,7 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types'
 import { Buffer } from 'ipfs'
-const { encrypt } = require('../encryption')
+const { encrypt } = require('../encryptionpgp')
 
 let _this
 
@@ -22,7 +22,8 @@ export class Chat extends React.Component {
       },
       chatWith: 'All',
       dbIsReady: false,
-      passEncryption: ''
+      myPublicKey: '',
+      chatPublicKey: ''
 
     };
 
@@ -38,6 +39,7 @@ export class Chat extends React.Component {
 
         <textarea id="chatArea"
           name="chatArea"
+          className="chatArea"
           rows="10"
           cols="50"
           readOnly
@@ -106,14 +108,18 @@ export class Chat extends React.Component {
       status: "message"
     }
     let entry = { nickname: nickname, message: message }
+
     // Only encrypt private  chat
     if (_this.props.channelSend !== _this.props.PUBSUB_CHANNEL) {
-      msgText = await encrypt(JSON.stringify(msgText), _this.state.passEncryption)
-      entry = await encrypt(JSON.stringify(entry), _this.state.passEncryption)
+      _this.props.updateOutput(entry)
+      console.log(_this.state.chatPublicKey)
+      msgText = await encrypt(_this.state.chatPublicKey, JSON.stringify(msgText))
+      entry = await encrypt(_this.state.myPublicKey, JSON.stringify(entry))
     }
 
     const msgEncoded = Buffer.from(JSON.stringify(msgText))
     _this.state.ipfs.pubsub.publish(ch, msgEncoded)
+
     _this.props.AddMessage(entry);
   }
   componentDidMount() {
@@ -134,7 +140,8 @@ export class Chat extends React.Component {
           status: "message"
         },
         chatWith: this.props.chatWith,
-        passEncryption: this.props.passEncryption
+        myPublicKey: this.props.myPublicKey,
+        chatPublicKey: this.props.chatPublicKey
       })
       if (this.props.username !== prevProps.username) {
         const usernameElement = document.getElementById("nickname")
@@ -144,6 +151,11 @@ export class Chat extends React.Component {
         this.setState({
           dbIsReady: this.props.dbIsReady
         })
+      }
+      if (this.props.output !== prevProps.output) {
+        //Set scroll bar chat box to bottom
+        const chatHistory = document.getElementById("chatArea");
+        chatHistory.scrollTop = chatHistory.scrollHeight;
       }
     }
   }
@@ -158,10 +170,12 @@ Chat.propTypes = {
   PUBSUB_CHANNEL: PropTypes.string,
   AddMessage: PropTypes.func,
   changeUserName: PropTypes.func,
+  updateOutput: PropTypes.func,
   username: PropTypes.string,
   chatWith: PropTypes.string,
   dbIsReady: PropTypes.bool,
-  passEncryption: PropTypes.string
+  myPublicKey: PropTypes.string,
+  chatPublicKey: PropTypes.string
 
 }
 export default Chat;

@@ -53,7 +53,7 @@ export class Users extends React.Component {
             if (_this.state.chatWith === value.username) return
             chatName = value.username
 
-            channelName = await _this.props.requestPersonChat(value.keyId)
+            channelName = await _this.props.requestPersonChat(value)
         }
 
 
