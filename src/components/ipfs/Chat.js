@@ -39,6 +39,7 @@ export class Chat extends React.Component {
 
         <textarea id="chatArea"
           name="chatArea"
+          className="chatArea"
           rows="10"
           cols="50"
           readOnly
@@ -119,7 +120,7 @@ export class Chat extends React.Component {
     const msgEncoded = Buffer.from(JSON.stringify(msgText))
     _this.state.ipfs.pubsub.publish(ch, msgEncoded)
 
-    _this.props.AddMessage(entry, true);
+    _this.props.AddMessage(entry);
   }
   componentDidMount() {
     const usernameElement = document.getElementById("nickname")
@@ -150,6 +151,11 @@ export class Chat extends React.Component {
         this.setState({
           dbIsReady: this.props.dbIsReady
         })
+      }
+      if (this.props.output !== prevProps.output) {
+        //Set scroll bar chat box to bottom
+        const chatHistory = document.getElementById("chatArea");
+        chatHistory.scrollTop = chatHistory.scrollHeight;
       }
     }
   }

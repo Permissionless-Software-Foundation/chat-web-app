@@ -21,7 +21,7 @@ let channelsSuscriptions = []
 let myNameStoreKey = 'myUsername'
 let db_nicknameControl
 let db
-
+const maxMessagesToLoad = 100; // max mssages to load
 let _this
 
 export class chatapp extends React.Component {
@@ -47,7 +47,7 @@ export class chatapp extends React.Component {
       revocationCertificate: '',
       privKeyObj: ''
     },
-    chatPublicKey: ''
+    chatPublicKey: '',
   }
 
   constructor(props) {
@@ -60,7 +60,7 @@ export class chatapp extends React.Component {
 
     //connect to IPFS
     const ipfs = new IPFS({
-      repo: './orbitdbipfs/chatapp/ipfs',
+      repo: './orbit-db-ipfs/chatapp/ipfs',
       EXPERIMENTAL: {
         pubsub: true,
       },
@@ -360,6 +360,7 @@ export class chatapp extends React.Component {
     try {
       _this.setState({
         output: '',
+        dbIsReady: false
       })
 
       const access = {
@@ -368,21 +369,61 @@ export class chatapp extends React.Component {
           overwrite: true,
         },
       }
+
+      let flagLoad = true;
+      let flagEventOn = false;
+      let arrMsgs = []; // Messages array
+      db && await db.close() // Close db instance
       db = await _this.state.orbitdb.eventlog(db_addrs, access)
+      const db_loaded = db.load()  // Load db
+      console.log(`db loader : ${db_loaded}`)
 
-      await db.load()
+      // Only replicate global chat
+      if (!createNew) {
+        db.events.on('replicated', db_addrs => {
+          if (_this.state.chatWith === 'All') {
+            _this.queryGet()
+          }
+          //  console.warn('replicated event')
+        })
+      } else {
+        _this.queryGet()
+      }
+      // Progresive load db 
+      db.events.on('load.progress', (address, hash, entry, progress, total) => {
+        flagEventOn = true;
+        arrMsgs.push(entry)
+        // console.log(`total : ${total}`)
+        // console.log(`progress : ${progress}`)
 
-      await _this.queryGet()
-      _this.setState({
-        dbIsReady: true,
+        //Quantity messages don't exceed the stablished limit
+        if (total < maxMessagesToLoad && flagLoad) {
+          if (progress >= total) {
+            flagLoad = false;
+            _this.setState({
+              dbIsReady: false,
+            })
+            _this.queryGet(arrMsgs.reverse())
+          }
+
+        } else {
+          //Quantity messages exceed the stablished limit
+          if (progress >= maxMessagesToLoad & flagLoad) {
+            flagLoad = false;
+            _this.setState({
+              dbIsReady: false,
+            })
+            _this.queryGet(arrMsgs.reverse())
+          }
+        }
       })
-
-
-      db.events.on('replicated', db_addrs => {
-        if (_this.state.chatWith === 'All')
-          _this.queryGet()
-        //console.warn('replicated event')
-      })
+      setTimeout(() => {
+        if (!flagEventOn) {
+          _this.setState({
+            dbIsReady: true,
+          })
+        }
+      }, 1000)
     } catch (e) {
       console.error(e)
     }
@@ -428,23 +469,29 @@ export class chatapp extends React.Component {
   async AddMessage(entry) {
 
     try {
-      await db.add(entry)
-      _this.queryGet()
+      if (_this.state.chatWith === 'All') { // Global chat
+        await db.add(entry)
+        _this.queryGet()
+      } else { // Private chat
+        db.add(entry)
+      }
+
     } catch (e) {
       console.error(e)
     }
   }
 
   // Get the the latest messages from the event log DB.
-  async queryGet() {
+  async queryGet(msgsArray) {
+
     let latestMessages
     try {
 
+      msgsArray && msgsArray.length > 0 ? latestMessages = msgsArray :
+        latestMessages = await db.iterator({ limit: maxMessagesToLoad }).collect()
 
-      latestMessages = db.iterator({ limit: 10 }).collect()
 
-
-      // console.log(latestMessages)
+      console.log(latestMessages)
       // Validate - decrypt private messages. PUBSUB_CHANNEL is public chat
 
       if (_this.state.channelSend === PUBSUB_CHANNEL) {
@@ -457,7 +504,10 @@ export class chatapp extends React.Component {
             .join('\n') + `\n`
         _this.setState({
           output: output,
+          dbIsReady: true,
         })
+
+
       } else {
         //Decrytp db value
 
@@ -470,10 +520,14 @@ export class chatapp extends React.Component {
   }
   //Decrypt message from  db
   async getDataDecrypted(arrayData) {
+    _this.setState({
+      output: output,
+    })
     let output = ''
     if (arrayData.length == 0) {
       _this.setState({
         output: output,
+        dbIsReady: true,
       })
       return
     }
@@ -491,6 +545,7 @@ export class chatapp extends React.Component {
         if (i >= arrayData.length - 1) {
           _this.setState({
             output: output,
+            dbIsReady: true,
           })
         }
       }
